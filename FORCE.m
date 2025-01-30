@@ -14,7 +14,7 @@ param.Topt =  42;				% optimal temp for Vcmax (C)
 param.gmin = 0.01;				% min stomata conductance (mol m-2 s-1)
 param.gmax = 0.5;				% max stomata conductance (mol m-2 s-1)
 param.Vcmax0 = 25;				% Vcmax top of the canopy (TOC)
-param.cw0 = 0.7;			    % parameter of carbon cost of water (TOC)
+param.cw0 = 15;			        % parameter of carbon cost of water (TOC)
 param.zeta = 0.0;				% increase in cw with canopy depth
 param.heta = 0.45;				% decrease Vcmax with canopy depth (defualt = 34/75)
 param.keta = 0.0;               % increase Kmax with canopy depth (<1)
@@ -152,6 +152,7 @@ for i=1:length(x)
 
     input.Vcmax = Vcmax0*(1 - 0.07*x(i));
     input.Rd    = 0.015*Vcmax0*(1 - 0.11*x(i));
+    input.Jmax = 1.96*input.Vcmax;
     input.cw  = cw0;
     input.Rabs  = alfa.*(Iup(i) + Idn(i)) + aRad(i);
     input.PAR   = aPAR(i);
@@ -309,7 +310,7 @@ plot(output.gs,x);
 set(v,'ydir','reverse')
 xlabel('stomata conductance (mol m^-^2 s^-^1)')
 ylabel('canopy depth (LAI)')
-hold all
+hold on
 
 h=subplot(222);
 plot(output.T,x);
@@ -317,10 +318,8 @@ lin1 = xline(Tair);lin1.LineStyle='--';
 % lin2 = xline(Topt);lin2.LineStyle='--';lin2.Color='r';
 xlabel('leaf temeperature (^oC)')
 set(h,'ydir','reverse')
-hold all
+hold on
 
-% DL = (610.94*exp((17.625*output.T)./(output.T+243.04))-ec)/p;
-% plot(DL,x);
 
 z=subplot(223);
 plot(output.an,x);
@@ -328,13 +327,13 @@ plot(output.an,x);
 set(z,'ydir','reverse')
 xlabel('Net Phothosyntesis (\mumol m^-^2 s^-^1)')
 ylabel('canopy depth (LAI)')
-hold all
+hold on
 
-w=subplot(224);
+g=subplot(224);
 plot(output.evap,x);
 xlabel('transpiration (mmol m^{-2} s^{-1})')
-set(w,'ydir','reverse')
-hold all
+set(g,'ydir','reverse')
+hold on
 
 end
 
@@ -349,8 +348,8 @@ U = U0*exp(-k*x/LAI);                   % wind
 aRad = exp(polyval(WS0,x));             % absorbed short-wave radiation
 aPAR = exp(polyval(WS1,x));             % absorbed PAR   
 Vcmax = Vcmax0*(1 - 0.075*x);           % Vcmax
+Jmax = 1.96*Vcmax;           % Jmax
 Rd = 0.015*Vcmax0*(1 - 0.11*x);         % leaf dark respiration
-cw = cw0;                               % water use effiency
 
 
 T = zeros(size(x));
@@ -363,8 +362,9 @@ for jj=1:length(x)
     input.Rabs =  alfa.*(Y(1,jj)+Y(2,jj)) + aRad(jj);
     input.PAR = aPAR(jj);
     input.Vcmax = Vcmax(jj);
+    input.Jmax = Jmax(jj);
     input.Rd = Rd(jj);
-    input.cw = cw(jj);
+    input.cw = cw0;
 
 	Kmax = Kmax0*(1 - keta*x(jj));
 %% linearization
@@ -377,8 +377,8 @@ E0 =   Evap(2)/An(2)*Amax-Evap(2);
 T1 = (Tleaf(1)-Tleaf(2))/(Evap(1)-Evap(2));
 T0 = Tleaf(1)-T1*Evap(1);
 
-S = (exp(a*(psiS-p50))+1).*exp(-a*Evap/Kmax);
-dC_dE = input.cw*a/Kmax*S./(S+1).^2;
+dC_dE = MarCost(Evap);
+
 Emax = Kmax/a*log(exp(a*(psiS-p50))+1);
 
 if Emax>Evap(2)
@@ -419,16 +419,21 @@ dY(2,:) =   (alfa + gamma).*Y(2,:) - gamma.*Y(1,:) - LOE;
 
 end
 
-%% Carbon Gain (from gs)
+%% Carbon Gain (as function of gs)
 function [An,E,TL,h,Rd,cl] = CarbonGain(gs,input,type)
 
-% y1 = LeafEnegyBudget(Tair-10,gs);
-% y2 = LeafEnegyBudget(Tair,gs);
-% y3 = LeafEnegyBudget(Tair+10,gs);
 
+[Tmin,ymin] = fminbnd(@(x) LeafEnegyBudget(x,gs),Tair-10,Tair);
 
-TL = fzero2(gs);
-
+if ymin<0
+    TL = fzero(@(x) LeafEnegyBudget(x,gs),[Tair-10 Tmin]);
+elseif ymin>0
+    try
+    	TL = fzero(@(x) LeafEnegyBudget(x,gs),[Tmin Tair+10]);
+    catch
+    	TL = fzero(@(x) LeafEnegyBudget(x,gs),[Tmin Tair+15]);
+    end
+end
 
 DT = TL-Tair;
 gHb	= 1.4*input.gHb_forced + 0.05*(abs(DT)/d).^0.25;
@@ -441,7 +446,7 @@ gv  = gvb*gs/(gvb+gs);
 gcs = gs/1.6;
 gc  = gcs.*gcb./(gcs+gcb);
 
-[Ac,Aj,Rd] = FarqhuarModel(gc,input.Vcmax,input.Rd,Topt,TL,input.PAR);
+[Ac,Aj,Rd] = FarqhuarModel(gc,input.Vcmax,input.Jmax,input.Rd,Topt,TL,input.PAR);
 if type
 	An = Aj; % always light limited
 else
@@ -460,6 +465,7 @@ function y = MarCost(x)
 S = (exp(a*(psiS-p50))+1).*exp(-a*x/Kmax);
 y = input.cw*a/Kmax*S./(S+1).^2;
 end
+
 %%
 function y = LeafEnegyBudget(x,gs)
 DT = x-Tair;
@@ -475,47 +481,14 @@ y = input.Rabs - 2*sigma*(x+273.15).^4 - 2*cp.*gHb*DT - lambda.*gv*DL;
 % end
 end
 
-%%
-% function y = LeafEnegyBudget2(x,E)
-% DT = x-Tair;
-% gHb	= 1.4*input.gHb_forced + 0.05*(abs(DT)/d).^0.25;
-% y = input.Rabs - 2*sigma*(x+273.15).^4 - 2*cp.*gHb*DT - lambda.*E;
-% 
-% % if y==-inf || y==inf || imag(y)~=0 || isnan(y)
-% % 	999
-% % end
-% end
+
 
 %% boundary conditions
 function res = bcfun(ya,yb)
 
     res = [ya(1)-LW0;yb(2) - rlw_s*yb(1)-Rg];
 end   
-%%
-function TL = fzero2(gs)
 
-	Tmin = fminbnd(@(x) LeafEnegyBudget(x,gs),Tair-10,Tair);
-	ymin = LeafEnegyBudget(Tmin,gs);
-
-	if ymin<0
-		TL = fzero(@(x) LeafEnegyBudget(x,gs),[Tair-10 Tmin]);
-	elseif ymin>0
-		TL = fzero(@(x) LeafEnegyBudget(x,gs),[Tmin Tair+10]);
-	end
-end
-
-%%
-% function TL = fzero3(E)
-% 
-% 	Tmin = fminbnd(@(x) LeafEnegyBudget2(x,E),Tair-10,Tair);
-% 	ymin = LeafEnegyBudget2(Tmin,E);
-% 
-% 	if ymin<0
-% 		TL = fzero(@(x) LeafEnegyBudget2(x,E),[Tair-10 Tmin]);
-% 	elseif ymin>0
-% 		TL = fzero(@(x) LeafEnegyBudget2(x,E),[Tmin Tair+10]);
-% 	end
-% end
 %% Jacobians
 function [dbcdya,dbcdyb] = fjacbc(~,~)
     
@@ -527,54 +500,5 @@ dbcdyb=[0   0
 
 end
 
-%% G-Ross and J-function verical distribution 
-function [k,J,x] = Gfunction(ME0,ze,LAI)
-
-% Inputs:
-%      LAI: leaf area index
-%      I0:  total incoming radiation
-%      ze: solar zenit angle (rad)
-%      fD: fraction of diffuse radiation
-
-
-x = linspace(0,LAI);
-
-
-n = length(x);
-% Z = exp(-(55/25*(1-x/LAI)).^2);
-Z = x./LAI;
-ME=ME0-(ME0-22)*Z;
-SD=20 -(20 -13)*Z;
-
-tbar = ME./90;
-st=(SD/90).^2;
-s0=tbar.*(1-tbar);
-nu = tbar.*(s0./st-1);
-mu=(1-tbar).*(s0./st-1);
-    J = zeros(1,n);
-	k = zeros(1,n);
-	for j=1:n
-		
-		F = @(th) 2./pi./beta(mu(j),nu(j))*(1-2*th/pi).^(mu(j)-1).*(2*th/pi).^(nu(j)-1);
-		
-		if ze==0
-			W1 = @(th) F(th).*cos(th);
-			
-			k(j) = integral(@(x) W1(x),0,pi/2);
-		else
-			W1 = @(th) F(th).*cos(th);
-			W2 = @(th) F(th).*cos(th).*2./pi.*(sqrt(tan(th).^2.*tan(ze).^2-1)-asec(tan(th).*tan(ze)));
-			
-			k(j) = integral(@(x) W1(x),0,pi/2) + integral(@(x) W2(x),pi/2-ze,pi/2);
-			
-		end
-		
-		W1 = @(th) F(th).*cos(th).^2;
-		J(j) = integral(@(x) W1(x),0,pi/2);
-		
-	end
-
-
-end
 
 end

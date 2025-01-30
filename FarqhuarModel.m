@@ -1,10 +1,10 @@
-function [Ac,Aj,Rd] = FarqhuarModel(gs,Vcmax25,Rd25,Topt,TL,PAR)
+function [Ac,Aj,Rd] = FarqhuarModel(gs,Vcmax25,Jmax25,Rd25,Topt,TL,PAR)
 % Net Photosyntesis with stomata optimization coupled with hydraulic transport
 %
 % Parameters
 % Vcmax25:  maximum carboxillation velocity at reference temperature [mumol/m2/s]
 % gs: stomata conductance to CO2 [mol m-2 s-1]
-% Topt: optimal temperature for Vcamax [Celsius[
+% Topt: optimal temperature for Vcamax [Celsius]
 %
 % environmetal inputs 
 % TL:  leaf temperature (C)
@@ -48,7 +48,7 @@ S.Vcmax = Hd.Vcmax./(Topt + 273.15)  + R*log(Ha.Vcmax/(Hd.Vcmax-Ha.Vcmax)); % J 
 
 % Jmax (from Medelyn et al., 2002)
 % Jmax25 = exp(1.01+0.89*log(Vcmax25)); % mumol/m2/s (Walker at al., 2014, table 4)
-Jmax25 = 1.96*Vcmax25; % mumol/m2/s (Lamour at al., 2023, table 2)
+% Jmax25 = 1.96*Vcmax25; % mumol/m2/s (Lamour at al., 2023, table 2)
 
 Ha.Jmax = 43965;      % J mol-1  
 Hd.Jmax = 200000;     % J mol-1  
