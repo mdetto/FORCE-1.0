@@ -58,9 +58,7 @@ S.Jmax = Hd.Jmax./(ToptJ + 273.15)  + R*log(Ha.Jmax/(Hd.Jmax-Ha.Jmax)); % J mol-
 theta = .7;           % unitless
 alpha = 0.36;         % unitless
 
-% Mesophyll conductance
-gm25 = 0.05; %(mumol m-2 s-1 Pa-1)
-Ha.gm = 45e+3; %J mol-1
+
 %% temperature functions
 Kc  =  Kc25*exp((TK-298)./(R*TK*298)*E.Kc);
 Ko  =  Ko25*exp((TK-298)./(R*TK*298)*E.Ko);
@@ -83,15 +81,19 @@ Km = Kc.*(1+O./Ko);
 % Vcmax  =  Vcmax25;
 % Jmax   =   Jmax25;
 % Km = Kc.*(1+O./Ko); 
-%%
-gm = gm25*exp(Ha.gm./(R*TK));
-% gm = gm25;
-if gm == inf
-    gc = gs;
-else
-    gc = gs.*gm./(gs+gm);
-end
+
+%% Mesophyll conductance
+% gm25 = 0.05; %(mumol m-2 s-1 Pa-1)
+% Ha.gm = 45e+3; %J mol-1
+% gm = gm25*exp(Ha.gm./(R*TK));
+% % gm = gm25;
+% if gm == inf
+%     gc = gs;
+% else
+%     gc = gs.*gm./(gs+gm);
+% end
 %% carbon limited
+gc = gs;
 a  =  (Vcmax-Rd)/2;
 b  =  (Ca+Km)/2;
 c  =  Rd./2.*(Ca+Km) + Vcmax./2.*(2*Gstar-Ca+Km);
@@ -111,6 +113,13 @@ Aj = a + b.*gc - sqrt(b.^2.*gc.^2+c.*gc+a.^2);
 else
     Aj = -Rd;
 end
+
+% losgist smoothing
+% x = (Ac-Aj)./(Ac+Aj);
+% 
+% w = 1./(1+exp(-x*10));
+% 
+% Acj = (1-w)*Ac+w*Aj;
 
 %% co-limitation Vico et al., (2013)
 % elseif strcmp(dat.model,'colimit')
