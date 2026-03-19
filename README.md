@@ -1,3 +1,5 @@
 # The Forest Carbon Exchange Model – FORCE-1.0
 
-The Forest Carbon Exchange model (FORCE) version 1.0 is a multi-layer model to simulate energy, water and carbon fluxes from forest ecosystems developed by Matteo Detto at the High Meadows Environmental Institute of Princeton University. This document describes model development and its parametrization. 
+The Forest Carbon Exchange model (FORCE) version 1.0 is a multi-layer model to simulate energy, water and carbon fluxes from forest ecosystems developed by Matteo Detto at Princeton University. This document describes model development and its parametrization. 
+
+A full description of the Model is provided in the Force 1.0.pdf
