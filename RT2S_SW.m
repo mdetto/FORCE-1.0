@@ -1,4 +1,4 @@
-function [A,x,R0,Idn,Iup,gap,albedo] = RT2S_SW(LAI,Rs,f,RHO,k0,J0,x0)
+function [A,x,R0,Idn,Iup,gap,albedo,Am] = RT2S_SW(LAI,Rs,fD,rho,tau,k0,J0,kstar0,x0,varargin)
 % Radiative transfer model for shortwave radiation
 % Description: the model is a numerical solution of a two-stream approximation
 % It is run for visible and NIR separately, assuming 50% of incoming radiation is vis
@@ -10,7 +10,7 @@ function [A,x,R0,Idn,Iup,gap,albedo] = RT2S_SW(LAI,Rs,f,RHO,k0,J0,x0)
 %      LAI: leaf area index
 %      Rs:  total incoming radiation at the top of the canopy
 %      ze:  solar zenit angle (rad)
-%      f:   fraction of diffuse radiation
+%      fD:  fraction of diffuse radiation
 
 % Outputs:
 %      A:  absorbed radiation
@@ -35,8 +35,9 @@ options_2 = bvpset('RelTol',1e-6,'AbsTol',1e-6,'FJacobian',@fjac,...
 % tau = 0.25;  % leaf transmittance
 % rg  = 0.15;  % soil reflectance
 
-TAU = [0.05 0.25]; % leaf transmittance
-RG = [0.15 0.30];  % soil reflectance
+% TAU = [0.05 0.25]; % leaf transmittance
+% RG = [0.15 0.30];  % soil reflectance
+rhos = [0.15 0.15]; % soil reflectance
 s = [0.5 0.5]; %fraction of incoming radiation in band VIS and NIR 
 N = 100;
 x = linspace(0,LAI,N);
@@ -48,30 +49,30 @@ A = zeros(N,2);
 % gap fraction
 temp1 = ode15s(@Direct,[0 LAI],1,options_1);
 gap = deval(temp1,x).';
+
 for i=1:2
 
-rho = RHO(i);  % leaf reflectance
-tau = TAU(i);  % leaf transmittance
-rg  = RG(i);  % soil reflectance
-omega = rho+tau;
-delta = rho-tau;
-alfa = 1 - omega;  % Absorption coefficient for incoming diffuse radiation
+rg  = rhos(i);   % soil reflectance
+omega = rho(i)+tau(i);
+delta = rho(i)-tau(i);
 I0 = s(i)*Rs;
 %% numerical solver
 
-Rbottom = gap(N)*(1-f)*I0;
-solinit = bvpinit([0 LAI],[f*I0,f*I0]);
+Rbottom = gap(N)*(1-fD)*I0;
+solinit = bvpinit([0 LAI],[fD*I0,fD*I0]);
 temp = bvp5c(@TwoStream,@bcfun,solinit,options_2);
 
 
 sol = deval(temp,x);
 Idn(:,i) = sol(1,:);
 Iup(:,i) = sol(2,:);
-R0(:,i) = gap*(1-f)*I0;
+R0(:,i) = gap*(1-fD)*I0;
 
 %% absorbed radiation
 k  = spline(x0,k0,x).';  
-A(:,i) =  alfa.*(Iup(:,i) + Idn(:,i) + k.*R0(:,i));
+kstar  = spline(x0,kstar0,x).';  
+A(:,i) =  (1-omega).*(kstar.*(Iup(:,i) + Idn(:,i)) + k.*R0(:,i));
+
 end
 
 
@@ -82,8 +83,8 @@ end
 % % 
 % s(2)*Rs - Iup(1,2) - (1-rg)*(Idn(end,2)+R0(end,2))
 % trapz(x,A(:,2))
-
-albedo = (Iup(1,1)+Iup(1,2))/Rs;
+% 
+% albedo = (Iup(1,1)+Iup(1,2))/Rs;
 %% plottings
 if nargout==0
 subplot(121)
@@ -118,20 +119,22 @@ function dY = TwoStream(x,Y)
 	
 k = spline(x0,k0,x);                    % Extinction coeficcient for direct radiation
 J = spline(x0,J0,x);                    % J-function
-gamma = 1/2*(omega+J*delta);            % Backward scattering coefficient for incoming diffuse radiation
+kstar= spline(x0,kstar0,x);             % inverse of the average optical depth for diffuse raduation
+alfa = (1-omega).*kstar;                % abserbed coefficient for diffuse radiation
+beta = 1/2*(omega+J*delta).*kstar;      % Backward scattering coefficient for diffuse radiation
 sigma_bw = 1/2*omega*k + 1/2*J*delta;   % Backward scattering for direct radiation
 sigma_fw = omega*k-sigma_bw;            % Farward scattering for direct radiation
 
-R = deval(temp1,x)*(1-f)*I0;
-dY(1,:) =  -(alfa + gamma).*Y(1,:) + gamma.*Y(2,:) + sigma_fw.*R;
-dY(2,:) =   (alfa + gamma).*Y(2,:) - gamma.*Y(1,:) - sigma_bw.*R;
+R = deval(temp1,x)*(1-fD)*I0;
+dY(1,:) =  -(alfa + beta).*Y(1,:) + beta.*Y(2,:) + sigma_fw.*R;
+dY(2,:) =   (alfa + beta).*Y(2,:) - beta.*Y(1,:) - sigma_bw.*R;
 
 end
 
 %% boundary conditions
 function res = bcfun(ya,yb)
 %     Rbottom = deval(temp1,LAI);
-    res = [ya(1)-f*I0; yb(2) - rg*yb(1) - rg*Rbottom];
+    res = [ya(1)-fD*I0; yb(2) - rg*yb(1) - rg*Rbottom];
 end   
 
 %% Jacobians
@@ -150,12 +153,15 @@ function Jac = fjac(x,~)
 
 k = spline(x0,k0,x);                    % Extinction coeficcient for direct radiation
 J = spline(x0,J0,x);                    % J-function
-gamma = 1/2*(omega+J*delta);            % Backward scattering coefficient for incoming diffuse radiation
+kstar= spline(x0,kstar0,x);             % inverse of the average optical depth for diffuse raduation
+alfa = (1-omega).*kstar;                % abserbed coefficient for diffuse radiation
+beta = 1/2*(omega+J*delta).*kstar;      % Backward scattering coefficient for diffuse radiation
 
-Jac(1,1) =  -alfa-gamma;
-Jac(1,2) =  +gamma;
-Jac(2,1) =  -gamma;
-Jac(2,2) =   alfa+gamma;
+
+Jac(1,1) =  -alfa-beta;
+Jac(1,2) =  +beta;
+Jac(2,1) =  -beta;
+Jac(2,2) =   alfa+beta;
 
 end
 
