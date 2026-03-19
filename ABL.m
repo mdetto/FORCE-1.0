@@ -37,21 +37,21 @@ end
 % Detailed explanation goes here
 
 %% parameters
-net =  ANN.net;
-me.wt = ANN.me.wt;
-me.wq = ANN.me.wq;
-me.tc = ANN.me.tc;
+net    =  ANN.net;
+me.wt  = ANN.me.wt;
+me.wq  = ANN.me.wq;
+me.tc  = ANN.me.tc;
 me.GPP = ANN.me.GPP;
-sd.wt = ANN.sd.wt;
-sd.wq = ANN.sd.wq;
+sd.wt  = ANN.sd.wt;
+sd.wq  = ANN.sd.wq;
 sd.GPP = ANN.sd.GPP;
-sd.tc = ANN.sd.tc;
+sd.tc  = ANN.sd.tc;
 
-ws = param.ws;
-gT = param.gT;
-gq = param.gq; 
+ws   = param.ws;
+gT   = param.gT;
+gq   = param.gq; 
 beta = param.beta; 
-p = param.p;
+p    = param.p;
 % z0H = param.z0H;
 Hc = param.Hc;
 d0 = 0.65*Hc;        % zero-plane displacement (m)
@@ -258,7 +258,6 @@ F(1) = abs((Ta-th) - ra*wt)/th;
 F(2) = abs((qa-q ) - ra*wq)/q;
 
 % ra = log((zsl-d0)/z0H)/(0.4*ustar);
-
 % ra = log(z/z0H)/(k*ustar);
 
 end
